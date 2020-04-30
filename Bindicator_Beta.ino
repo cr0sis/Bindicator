@@ -21,7 +21,7 @@ const char *host = "ilancasterapi.lancaster.ac.uk";
 const int httpsPort = 443;  //HTTPS= 443 and HTTP = 80
 
 //SHA1 finger print of certificate
-const char fingerprint[] PROGMEM = "F2 F4 7C 52 1F 55 DD 06 6B E6 A0 6D E4 D4 6C 17 83 5F BC DF";
+const char fingerprint[] PROGMEM = "F2 F4 7C 52 1F 55 DD 06 6B E6 A0 6D E4 D4 6C 17 83 5F BC DF";  // Once you know your council API address check certs for its SHA-1 and paste here
 
 
 // Define NTP Client to get time
