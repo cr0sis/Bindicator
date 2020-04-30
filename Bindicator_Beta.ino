@@ -10,18 +10,24 @@
 #include <ArduinoJson.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <Arduino.h>
+#include <FastLED.h>
+
+#define NUM_LEDS 10
+#define DATA_PIN 1
+CRGB leds[NUM_LEDS];
 
 /* Set these to your desired credentials. */
-const char *ssid = "******";  //ENTER YOUR WIFI SETTINGS
-const char *password = "*******";
+const char *ssid = "********";  //ENTER YOUR WIFI SETTINGS
+const char *password = "********";
 
 
 //Web/Server address to read from
-const char *host = "ilancasterapi.lancaster.ac.uk";
+const char *host = "ilancasterapi.lancaster.ac.uk";  // You will have to find this url yourself, sorry.
 const int httpsPort = 443;  //HTTPS= 443 and HTTP = 80
 
 //SHA1 finger print of certificate
-const char fingerprint[] PROGMEM = "F2 F4 7C 52 1F 55 DD 06 6B E6 A0 6D E4 D4 6C 17 83 5F BC DF";  // Once you know your council API address check certs for its SHA-1 and paste here
+const char fingerprint[] PROGMEM = "F2 F4 7C 52 1F 55 DD 06 6B E6 A0 6D E4 D4 6C 17 83 5F BC DF";
 
 
 // Define NTP Client to get time
@@ -35,8 +41,7 @@ String months[12] = {"January", "February", "March", "April", "May", "June", "Ju
 
 constexpr size_t capacity = 4 * JSON_ARRAY_SIZE(1) + 5 * JSON_ARRAY_SIZE(2) + JSON_ARRAY_SIZE(9) + 9 * JSON_OBJECT_SIZE(2) + 560;
 void setup() {
-
-  pinMode(LED_BUILTIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
+  FastLED.addLeds<WS2811, DATA_PIN, GRB>(leds, NUM_LEDS);
   Serial.begin(9600);
   WiFi.mode(WIFI_OFF);        //Prevents reconnection issue (taking too long to connect)
   delay(1000);
@@ -67,24 +72,52 @@ void setup() {
   // GMT -1 = -3600
   // GMT 0 = 0
   timeClient.setTimeOffset(3600);
-  digitalWrite(LED_BUILTIN, HIGH);
+    FastLED.showColor(CRGB::Green);
 }
 
 void urgentTwinkling() {              // TIME TO TAKE OUT THE TRASH!
-  for (int i = 0; i < 5000; i++) {
-    digitalWrite(LED_BUILTIN, LOW);   // LOW is the voltage level; the LED is on     Flash the LED if it's Bin day!
+  for (int i = 0; i < 2000; i++) {    //Flash the LED if it's Bin day!
+    FastLED.showColor(CRGB::Purple);
     delay(30);
-    digitalWrite(LED_BUILTIN, HIGH);  // HIGH voltage; the LED is off
+
+    FastLED.showColor(CRGB::Black);
     delay(70);
   }
 }
 
-void flash() {          // Flash once every update (10 seconds) to show power/updating.
-  for (int i = 0; i < 5; i++) {
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(10);
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(9959);
+void flash() {          // Dancing lightshow
+  for (int i = 0; i < 45; i++) {
+    static uint8_t hue = 0;
+    // First slide the led in one direction
+    for (int i = 0; i < NUM_LEDS; i++) {
+      // Set the i'th led to red
+      leds[i] = CHSV(hue++, 255, 255);
+      // Show the leds
+      FastLED.show();
+      // now that we've shown the leds, reset the i'th led to black
+      // leds[i] = CRGB::Black;
+      fadeall();
+      // Wait a little bit before we loop around and do it again
+      delay(10);
+
+      //    digitalWrite(LED_BUILTIN, LOW);
+      //    delay(10);
+      //    digitalWrite(LED_BUILTIN, HIGH);
+      //    delay(9959);
+
+      // Now go in the other direction.
+      for (int i = (NUM_LEDS) - 1; i >= 0; i--) {
+        // Set the i'th led to red
+        leds[i] = CHSV(hue++, 255, 255);
+        // Show the leds
+        FastLED.show();
+        // now that we've shown the leds, reset the i'th led to black
+        // leds[i] = CRGB::Black;
+        fadeall();
+        // Wait a little bit before we loop around and do it again
+        delay(10);
+      }
+    }
   }
 }
 String getJson() {
@@ -115,8 +148,8 @@ String getJson() {
   String Link;
 
   //GET Data
-  Link = "//production/api/v1/CityAndRegion/Bins/Collection/house20%address"; // No help finding this for yourself sorry.
-                                                                            //Your local council would be the first place I'd email
+  Link = "//production/api/v1/CityAndRegion/Bins/Collection/House%20Address";  // You will have to find this link yourself, sorry.
+
   Serial.println("requesting URL: ");
   Serial.println(host + Link);
 
@@ -154,19 +187,24 @@ String getJson() {
 
   //  const char* root_1_BinTypes_0 = doc[1]["BinTypes"][0]; // "Refuse" MIGHT USE THIS CODE LATER TO SHOW NEXT WEEKS COLLECTION SOMEHOW.
 }
-
+void fadeall() {
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i].nscale8(250);
+  }
+}
 
 //=======================================================================
 //                    Main Program Loop
 //=======================================================================
 void loop() {
+  FastLED.showColor(CRGB::Purple);
   DynamicJsonDocument doc(capacity);
   String json = getJson();
   String  collectionDate = "";
 
-  if(json == "") {
-     // THINK ABOUT notifying user of error in fetching data, e.g. by turning on a RED LED somewhere in future.
-     return;
+  if (json == "") {
+    // THINK ABOUT notifying user of error in fetching data, e.g. by turning on a RED LED somewhere in future.
+    return;
   }
 
   deserializeJson(doc, json);
@@ -179,7 +217,7 @@ void loop() {
   Serial.println(root_0_BinTypes_0);
 
   timeClient.update();
-     // UNCOMMENT strings here - you really do not need all this information returned.
+
   unsigned long epochTime = timeClient.getEpochTime();
   Serial.print("Epoch Time: ");
   Serial.println(epochTime);
@@ -210,7 +248,17 @@ void loop() {
   Serial.print("Year: ");
   Serial.println(currentYear);
 
-  String currentDate = String(currentYear) + "-" + String(currentMonth) + "-" + String(monthDay);
+  String currentMonthStr = String(currentMonth);
+  String monthDayStr = String(monthDay);
+
+  if (currentMonthStr.length() == 1) {
+    currentMonthStr = "0" + currentMonthStr;
+  }
+  if (monthDayStr.length() == 1) {
+    monthDayStr = "0" + monthDayStr;
+  }
+
+  String currentDate = String(currentYear) + "-" + currentMonthStr + "-" + monthDayStr;
   Serial.print("Current date: ");
   Serial.println(currentDate);
   Serial.println();
