@@ -7,10 +7,9 @@
 #include <WiFiClientSecure.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPClient.h>
-#include <ArduinoJson.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
-#include <Arduino.h>
+#include <ArduinoJson.h>
 #include <FastLED.h>
 
 #define NUM_LEDS 10
@@ -22,9 +21,13 @@ const char *ssid = "********";  //ENTER YOUR WIFI SETTINGS
 const char *password = "********";
 
 
+unsigned long previousMillis = 900000;
+const long interval = 900000;
+
 //Web/Server address to read from
-const char *host = "ilancasterapi.lancaster.ac.uk";  // You will have to find this url yourself, sorry.
-const int httpsPort = 443;  //HTTPS= 443 and HTTP = 80
+const char *host = "ilancasterapi.lancaster.ac.uk";      // EXAMPLE URL ONLY - First part (Host only here) 
+const int httpsPort = 443;  //HTTPS= 443 and HTTP = 80   // see below for where to put the rest of the url. 
+                                                         // Search whole doc for "EXAMPLE" to toggle between these two lines.
 
 //SHA1 finger print of certificate
 const char fingerprint[] PROGMEM = "F2 F4 7C 52 1F 55 DD 06 6B E6 A0 6D E4 D4 6C 17 83 5F BC DF";
@@ -35,9 +38,9 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "europe.pool.ntp.org");
 
 //Week Days
-String weekDays[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+const char *weekDays[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 //Month names
-String months[12] = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
+const char *months[12] = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
 
 constexpr size_t capacity = 4 * JSON_ARRAY_SIZE(1) + 5 * JSON_ARRAY_SIZE(2) + JSON_ARRAY_SIZE(9) + 9 * JSON_OBJECT_SIZE(2) + 560;
 void setup() {
@@ -48,6 +51,7 @@ void setup() {
   WiFi.mode(WIFI_STA);        //Only Station No AP, This line hides the viewing of ESP as wifi hotspot
 
   WiFi.begin(ssid, password);     //Connect to your WiFi router
+  FastLED.showColor(CRGB::Green);
   Serial.println("");
 
   Serial.print("Connecting");
@@ -56,6 +60,7 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
+
 
   //If connection successful show IP address in serial monitor
   Serial.println("");
@@ -72,64 +77,69 @@ void setup() {
   // GMT -1 = -3600
   // GMT 0 = 0
   timeClient.setTimeOffset(3600);
-    FastLED.showColor(CRGB::Green);
+  greenFade();
 }
-
-void urgentTwinkling() {              // TIME TO TAKE OUT THE TRASH!
-  for (int i = 0; i < 2000; i++) {    //Flash the LED if it's Bin day!
-    FastLED.showColor(CRGB::Purple);
-    delay(30);
-
-    FastLED.showColor(CRGB::Black);
-    delay(70);
+void greenBin() {              // TIME TO TAKE OUT THE GREEN TRASH!
+  for (int i = 0; i < 60; i++) {    //Flash the LED if it's Bin day!
+    greenRise();
+    delay(50);
+    greenFade();
   }
 }
 
-void flash() {          // Dancing lightshow
-  for (int i = 0; i < 45; i++) {
-    static uint8_t hue = 0;
-    // First slide the led in one direction
-    for (int i = 0; i < NUM_LEDS; i++) {
-      // Set the i'th led to red
-      leds[i] = CHSV(hue++, 255, 255);
-      // Show the leds
-      FastLED.show();
-      // now that we've shown the leds, reset the i'th led to black
-      // leds[i] = CRGB::Black;
-      fadeall();
-      // Wait a little bit before we loop around and do it again
-      delay(10);
-
-      //    digitalWrite(LED_BUILTIN, LOW);
-      //    delay(10);
-      //    digitalWrite(LED_BUILTIN, HIGH);
-      //    delay(9959);
-
-      // Now go in the other direction.
-      for (int i = (NUM_LEDS) - 1; i >= 0; i--) {
-        // Set the i'th led to red
-        leds[i] = CHSV(hue++, 255, 255);
-        // Show the leds
-        FastLED.show();
-        // now that we've shown the leds, reset the i'th led to black
-        // leds[i] = CRGB::Black;
-        fadeall();
-        // Wait a little bit before we loop around and do it again
-        delay(10);
-      }
-    }
+void greenRise() {
+  for (int u = 0; u <= 255; u++) {
+    fill_solid(leds, NUM_LEDS, CHSV(96, 255, u));
+    FastLED.show();
+    delay(2);
   }
 }
+
+void greenFade() {
+  for (int u = 255; u >= 0; u--) {
+    fill_solid(leds, NUM_LEDS, CHSV(96, 255, u));
+    FastLED.show();
+    delay(2);
+  }
+}
+
+void knightRider() {          // Knightrider
+  //  for (int i = 0; i < 2; i++) {
+  for (int k = 0; k < NUM_LEDS; k = k + 1) {
+    leds[k] = CRGB::Red;
+    FastLED.show();
+    leds[k] = CRGB::Black;
+    delay(50);
+  }
+  for (int k = (NUM_LEDS) - 1; k >= 0; k--) {
+    leds[k] = CRGB::Red;
+    FastLED.show();
+    leds[k] = CRGB::Black;
+    delay(50);
+  }
+}
+
+
+void updating() {
+  for (int u = 255; u >= 0; u--) {
+    fill_solid(leds, NUM_LEDS, CHSV(181, 255, u));
+    FastLED.show();
+    delay(2);
+  }
+}
+
 String getJson() {
+
+  updating();
+
   WiFiClientSecure httpsClient;    //Declare object of class WiFiClient
 
   Serial.println(host);
-
+  updating();
   Serial.printf("Using fingerprint '%s'\n", fingerprint);
   httpsClient.setFingerprint(fingerprint);
   httpsClient.setTimeout(15000); // 15 Seconds
-  delay(1000);
-
+  updating();
   Serial.println("HTTPS Connecting");
   int r = 0; //retry counter
   while ((!httpsClient.connect(host, httpsPort)) && (r < 30)) {
@@ -148,56 +158,41 @@ String getJson() {
   String Link;
 
   //GET Data
-  Link = "//production/api/v1/CityAndRegion/Bins/Collection/House%20Address";  // You will have to find this link yourself, sorry.
+  Link = "//production/api/v1/CityAndRegion/Bins/Collection/Your%20Address%URL"; // EXAMPLE URL ONLY - YOU WILL NEED TO FIND YOURS.
 
   Serial.println("requesting URL: ");
   Serial.println(host + Link);
-
+  updating();
   httpsClient.print(String("GET ") + Link + " HTTP/1.1\r\n" +
                     "Host: " + host + "\r\n" +
                     "Connection: close\r\n\r\n");
 
   Serial.println("request sent");
-
+  updating();
   while (httpsClient.connected()) {
     String line = httpsClient.readStringUntil('\n');
     if (line == "\r") {
+      updating();
       Serial.println("headers received");
       break;
     }
   }
 
-  Serial.println("reply was:");
-  Serial.println("==========");
+ // Serial.println("reply was:");
+ // Serial.println("==========");
   String line;
   while (httpsClient.available()) {
     line = httpsClient.readStringUntil('\n');  //Read Line by Line
-    Serial.println(line); //Print response
+ //   Serial.println(line); //Print response
   }
   Serial.println("==========");
   Serial.println("closing connection");
-
+  updating();
   String json = line;
-
   return json;
-
-  //  const char* root_0_BinTypes_1 = doc[0]["BinTypes"][1]; // "Recycle"
-
-  //  const char* root_1_CollectionDate = doc[1]["CollectionDate"]; // "2020-05-09T00:00:00Z"
-
-  //  const char* root_1_BinTypes_0 = doc[1]["BinTypes"][0]; // "Refuse" MIGHT USE THIS CODE LATER TO SHOW NEXT WEEKS COLLECTION SOMEHOW.
-}
-void fadeall() {
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i].nscale8(250);
-  }
 }
 
-//=======================================================================
-//                    Main Program Loop
-//=======================================================================
-void loop() {
-  FastLED.showColor(CRGB::Purple);
+void fullUpdate() {
   DynamicJsonDocument doc(capacity);
   String json = getJson();
   String  collectionDate = "";
@@ -208,45 +203,31 @@ void loop() {
   }
 
   deserializeJson(doc, json);
-  String root_0_CollectionDate_0 = doc[0]["CollectionDate"]; // "2020-05-01T00:00:00Z"
-  String root_0_BinTypes_0 = doc[0]["BinTypes"][0];
-  Serial.print("Next collection: ");
-  collectionDate = root_0_CollectionDate_0.substring(0, root_0_CollectionDate_0.length() - 10);
-  Serial.println(collectionDate);
-  Serial.print("Bin Type: ");
-  Serial.println(root_0_BinTypes_0);
+
+  String nextCollection = doc[0]["CollectionDate"]; // "2020-05-01T00:00:00Z"
+  String binType = doc[0]["BinTypes"][0];
+  String nextCollection_1 = doc[1]["CollectionDate"]; // "2020-05-09T00:00:00Z"
+  String binType_1 = doc[1]["BinTypes"][0]; // "Recycle"
+  collectionDate = nextCollection.substring(0, nextCollection.length() - 10);
 
   timeClient.update();
 
   unsigned long epochTime = timeClient.getEpochTime();
-  Serial.print("Epoch Time: ");
-  Serial.println(epochTime);
+  //Serial.print("Epoch Time: ");
+  //Serial.println(epochTime);
 
   String formattedTime = timeClient.getFormattedTime();
-  Serial.print("Formatted Time: ");
-  Serial.println(formattedTime);
+  // Serial.print("Formatted Time: ");
+  // Serial.println(formattedTime);
 
   struct tm *ptm = gmtime ((time_t *)&epochTime);
 
   String weekDay = weekDays[timeClient.getDay()];
-  Serial.print("Weekday: ");
-  Serial.println(weekDay);
+  // Serial.print("Weekday: ");
+  // Serial.println(weekDay);
 
   int monthDay = ptm->tm_mday;
-  Serial.print("Month day: ");
-  Serial.println(monthDay);
-
   int currentMonth = ptm->tm_mon + 1;
-  Serial.print("Month: ");
-  Serial.println(currentMonth);
-
-  String currentMonthName = months[currentMonth - 1];
-  Serial.print("Month name: ");
-  Serial.println(currentMonthName);
-
-  int currentYear = ptm->tm_year + 1900;
-  Serial.print("Year: ");
-  Serial.println(currentYear);
 
   String currentMonthStr = String(currentMonth);
   String monthDayStr = String(monthDay);
@@ -258,17 +239,58 @@ void loop() {
     monthDayStr = "0" + monthDayStr;
   }
 
+
+  // Serial.print("Month day: ");
+  // Serial.println(monthDayStr);
+
+  // Serial.print("Month: ");
+  // Serial.println(currentMonthStr);
+
+  // String currentMonthName = months[currentMonth - 1];
+  // Serial.print("Month name: ");
+  // Serial.println(currentMonthName);
+
+  int currentYear = ptm->tm_year + 1900;
+  // Serial.print("Year: ");
+  // Serial.println(currentYear);
+
+
   String currentDate = String(currentYear) + "-" + currentMonthStr + "-" + monthDayStr;
   Serial.print("Current date: ");
   Serial.println(currentDate);
-  Serial.println();
+  Serial.println("==========");
 
-
-  if (currentDate == collectionDate) {
-    urgentTwinkling();
+  if ((currentDate == collectionDate) && (binType == "Green")) {
+    Serial.print("It's now time to take the ");
+    Serial.print(binType);
+    Serial.print(" bin out!!!");
+    greenBin();
+    Serial.print("Your next collection date is: ");
+    Serial.println(nextCollection_1);
+    Serial.print("Next Bin Type: ");
+    Serial.print(binType_1);
   }
   else {
-    flash();
+    Serial.print("Your next collection date is: ");
+    Serial.println(collectionDate);
+    Serial.print("Next Bin Type: ");
+    Serial.print(binType);
+  }
+}
+
+
+//=======================================================================
+//                    Main Program Loop
+//=======================================================================
+void loop() {
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    // save the last time you ran a Full Update
+    previousMillis = currentMillis;
+    fullUpdate();
+  }
+  else {
+    knightRider();
   }
 }
 
