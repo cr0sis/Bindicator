@@ -1,3 +1,5 @@
+
+
 /*
    Bindicator by cr0sis 2020 all rights reserved.
    Got the copyright police on it an' all.
@@ -12,7 +14,7 @@
 #include <ArduinoJson.h>
 #include <FastLED.h>
 
-#define NUM_LEDS 10
+#define NUM_LEDS 85
 #define DATA_PIN 1
 CRGB leds[NUM_LEDS];
 
@@ -20,22 +22,23 @@ CRGB leds[NUM_LEDS];
 const char *ssid = "********";  //ENTER YOUR WIFI SETTINGS
 const char *password = "********";
 
+// How many hours ahead of time to trigger notification
+const long hoursBefore = 24;
 
-unsigned long previousMillis = 900000;
-const long interval = 900000;
+unsigned long previousMillis = 0;
+const long interval = 7200000;
 
 //Web/Server address to read from
-const char *host = "ilancasterapi.lancaster.ac.uk";      // EXAMPLE URL ONLY - First part (Host only here) 
-const int httpsPort = 443;  //HTTPS= 443 and HTTP = 80   // see below for where to put the rest of the url. 
-                                                         // Search whole doc for "EXAMPLE" to toggle between these two lines.
-
+const char *host = "ilancasterapi.lancaster.ac.uk"; // Sorry, this is going to take some detective work on your part to put the right url in for your local API.
+const int httpsPort = 443;  //HTTPS= 443 and HTTP = 80
 //SHA1 finger print of certificate
 const char fingerprint[] PROGMEM = "F2 F4 7C 52 1F 55 DD 06 6B E6 A0 6D E4 D4 6C 17 83 5F BC DF";
+String link = "//production/api/v1/CityAndRegion/Bins/Collection/YOUR%20ADDRESS%20HERE%20"; // Sorry, this is going to take some detective work on your part to put the right url in for your house.
 
 
 // Define NTP Client to get time
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "europe.pool.ntp.org");
+NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 60*60*hoursBefore); // tweak hoursBefore in globals above, this is hours before midnight on the collection day you want to start being informed. 24 = midnight the night before. 
 
 //Week Days
 const char *weekDays[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
@@ -76,8 +79,9 @@ void setup() {
   // GMT +8 = 28800
   // GMT -1 = -3600
   // GMT 0 = 0
-  timeClient.setTimeOffset(3600);
+  //timeClient.setTimeOffset(3600);
   greenFade();
+  fullUpdate();
 }
 void greenBin() {              // TIME TO TAKE OUT THE GREEN TRASH!
   for (int i = 0; i < 60; i++) {    //Flash the LED if it's Bin day!
@@ -103,22 +107,70 @@ void greenFade() {
   }
 }
 
-void knightRider() {          // Knightrider
-  //  for (int i = 0; i < 2; i++) {
-  for (int k = 0; k < NUM_LEDS; k = k + 1) {
-    leds[k] = CRGB::Red;
-    FastLED.show();
-    leds[k] = CRGB::Black;
-    delay(50);
+
+void knightRider2() {
+  for (int t = 0; t < 250; t++) {
   }
-  for (int k = (NUM_LEDS) - 1; k >= 0; k--) {
-    leds[k] = CRGB::Red;
-    FastLED.show();
-    leds[k] = CRGB::Black;
-    delay(50);
+  for (int i = 0; i < NUM_LEDS - 1; i++) {
+    leds[i] = CRGB::Purple;
+    leds[i + 1] = CRGB::Purple;
+    FastLED.delay(1);
+    leds[i] = CRGB::Black;
+    leds[i + 1] = CRGB::Black;
   }
 }
 
+void fadeall() { for(int i = 0; i < NUM_LEDS; i++) { leds[i].nscale8(250); } }
+
+void rainbow() { 
+  static uint8_t hue = 0;
+  // First slide the led in one direction
+  for(int i = 0; i < NUM_LEDS; i++) {
+    // Set the i'th led to red 
+    leds[i] = CHSV(hue++, 255, 125);
+    // Show the leds
+    FastLED.show(); 
+    // now that we've shown the leds, reset the i'th led to black
+    // leds[i] = CRGB::Black;
+    fadeall();
+    // Wait a little bit before we loop around and do it again
+    delay(10);
+  }
+
+
+  // Now go in the other direction.  
+  for(int i = (NUM_LEDS)-1; i >= 0; i--) {
+    // Set the i'th led to red 
+    leds[i] = CHSV(hue++, 255, 125);
+    // Show the leds
+    FastLED.show();
+    // now that we've shown the leds, reset the i'th led to black
+    // leds[i] = CRGB::Black;
+    fadeall();
+    // Wait a little bit before we loop around and do it again
+    delay(10);
+  }
+}
+
+/*for(int i = 0; i < NUM_LEDS-1; i++) {
+  leds(i,i+1) = CRGB::Red;
+  FastLED.delay(33);
+  leds(i,i+1) = CRGB::Black;
+  }*/
+
+/*void knightRider() {          // Knightrider
+
+    for (int k = 0; k < NUM_LEDS; k++) {
+      leds[k] = CRGB::Red;
+      FastLED.delay(5.5);
+      leds[k] = CRGB::Black;
+    }
+    for (int k = NUM_LEDS - 1; k >= 0; k--) {
+      leds[k] = CRGB::Red;
+      FastLED.delay(5.6);
+      leds[k] = CRGB::Black;
+    }
+  }*/
 
 void updating() {
   for (int u = 255; u >= 0; u--) {
@@ -134,13 +186,13 @@ String getJson() {
 
   WiFiClientSecure httpsClient;    //Declare object of class WiFiClient
 
-  Serial.println(host);
+  //  Serial.println(host);
   updating();
-  Serial.printf("Using fingerprint '%s'\n", fingerprint);
+  //  Serial.printf("Using fingerprint '%s'\n", fingerprint);
   httpsClient.setFingerprint(fingerprint);
   httpsClient.setTimeout(15000); // 15 Seconds
   updating();
-  Serial.println("HTTPS Connecting");
+  Serial.println("Running new binformation update");
   int r = 0; //retry counter
   while ((!httpsClient.connect(host, httpsPort)) && (r < 30)) {
     delay(100);
@@ -155,40 +207,36 @@ String getJson() {
     Serial.println("Connected to web. ");
   }
 
-  String Link;
-
-  //GET Data
-  Link = "//production/api/v1/CityAndRegion/Bins/Collection/Your%20Address%URL"; // EXAMPLE URL ONLY - YOU WILL NEED TO FIND YOURS.
-
-  Serial.println("requesting URL: ");
-  Serial.println(host + Link);
+  Serial.println("Requesting binformation");
+  //  Serial.println(host + link);
   updating();
-  httpsClient.print(String("GET ") + Link + " HTTP/1.1\r\n" +
+  httpsClient.print(String("GET ") + link + " HTTP/1.1\r\n" +
                     "Host: " + host + "\r\n" +
                     "Connection: close\r\n\r\n");
 
-  Serial.println("request sent");
+  // Serial.println("request sent");
   updating();
   while (httpsClient.connected()) {
     String line = httpsClient.readStringUntil('\n');
     if (line == "\r") {
       updating();
-      Serial.println("headers received");
+      //     Serial.println("headers received");
       break;
     }
   }
 
- // Serial.println("reply was:");
- // Serial.println("==========");
+  // Serial.println("reply was:");
+  // Serial.println("==========");
   String line;
   while (httpsClient.available()) {
     line = httpsClient.readStringUntil('\n');  //Read Line by Line
- //   Serial.println(line); //Print response
+    //   Serial.println(line); //Print response
   }
-  Serial.println("==========");
-  Serial.println("closing connection");
+  //  Serial.println("==========");
+  Serial.println("Binformation received");
   updating();
   String json = line;
+
   return json;
 }
 
@@ -218,7 +266,7 @@ void fullUpdate() {
 
   String formattedTime = timeClient.getFormattedTime();
   // Serial.print("Formatted Time: ");
-  // Serial.println(formattedTime);
+  Serial.println(formattedTime);
 
   struct tm *ptm = gmtime ((time_t *)&epochTime);
 
@@ -239,7 +287,6 @@ void fullUpdate() {
     monthDayStr = "0" + monthDayStr;
   }
 
-
   // Serial.print("Month day: ");
   // Serial.println(monthDayStr);
 
@@ -256,9 +303,9 @@ void fullUpdate() {
 
 
   String currentDate = String(currentYear) + "-" + currentMonthStr + "-" + monthDayStr;
-  Serial.print("Current date: ");
+  Serial.print("Tomorrow's date: ");
   Serial.println(currentDate);
-  Serial.println("==========");
+  //  Serial.println("==========");
 
   if ((currentDate == collectionDate) && (binType == "Green")) {
     Serial.print("It's now time to take the ");
@@ -268,20 +315,30 @@ void fullUpdate() {
     Serial.print("Your next collection date is: ");
     Serial.println(nextCollection_1);
     Serial.print("Next Bin Type: ");
-    Serial.print(binType_1);
+    Serial.println(binType_1);
+    Serial.print("");
+  }
+  if ((currentDate == collectionDate) && (binType == "Refuse")) {
+    Serial.print("It's now time to take the ");
+    Serial.print(binType);
+    Serial.print(" bin out!!!");
+    knightRider2();
+    Serial.print("Your next collection date is: ");
+    Serial.println(nextCollection_1);
+    Serial.print("Next Bin Type: ");
+    Serial.println(binType_1);
+    Serial.print("");
   }
   else {
     Serial.print("Your next collection date is: ");
     Serial.println(collectionDate);
     Serial.print("Next Bin Type: ");
-    Serial.print(binType);
+    Serial.println(binType);    
+    Serial.print("");
   }
 }
 
 
-//=======================================================================
-//                    Main Program Loop
-//=======================================================================
 void loop() {
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
@@ -290,8 +347,10 @@ void loop() {
     fullUpdate();
   }
   else {
-    knightRider();
+    rainbow();
   }
 }
 
+
 //=======================================================================
+
